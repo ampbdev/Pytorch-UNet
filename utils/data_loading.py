@@ -11,7 +11,7 @@ from os.path import splitext, isfile, join
 from pathlib import Path
 from torch.utils.data import Dataset
 from tqdm import tqdm
-
+import torch.nn.functional as F
 
 def load_image(filename):
     ext = splitext(filename)[1]
@@ -115,3 +115,29 @@ class BasicDataset(Dataset):
 class CarvanaDataset(BasicDataset):
     def __init__(self, images_dir, mask_dir, scale=1):
         super().__init__(images_dir, mask_dir, scale, mask_suffix='_mask')
+
+class AugmentedCarvanaDataset(BasicDataset):
+    def __init__(self, images_dir, mask_dir, scale=1, transforms=None):
+        super().__init__(images_dir, mask_dir, scale)
+        self.transforms = transforms
+
+    def __getitem__(self, idx):
+        sample = super().__getitem__(idx)
+        img, mask = sample['image'], sample['mask']
+        
+        # Check if the height and width of the image and mask match
+        
+        if img.shape[1:] != mask.shape:
+            # Resize the mask to match the image dimensions using PyTorch's interpolate
+            mask = F.interpolate(mask.unsqueeze(0).unsqueeze(0), size=img.shape[1:], mode='nearest').squeeze(0).squeeze(0)
+        
+        
+        if self.transforms:
+            augmented = self.transforms(image=img.numpy().transpose(1, 2, 0), mask=mask.numpy())
+            img = augmented['image']
+            mask = augmented['mask']
+        
+        return {
+            'image': img,
+            'mask': mask
+        }

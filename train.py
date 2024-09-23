@@ -10,14 +10,29 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 from pathlib import Path
 from torch import optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, ConcatDataset
 from tqdm import tqdm
 
 import wandb
 from evaluate import evaluate
 from unet import UNet
-from utils.data_loading import BasicDataset, CarvanaDataset
+from utils.data_loading import BasicDataset, AugmentedCarvanaDataset, CarvanaDataset
 from utils.dice_score import dice_loss
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
+def get_transforms():
+    return A.Compose([
+        A.Resize(height=256, width=256), 
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Transpose(p=0.5),
+        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=45, p=0.5),
+        A.RandomBrightnessContrast(p=0.5),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2()
+    ], additional_targets={'mask': 'mask'}, is_check_shapes=False)
 
 dir_img = Path('./data/imgs/')
 dir_mask = Path('./data/masks/')
@@ -37,12 +52,16 @@ def train_model(
         weight_decay: float = 1e-8,
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
+        augment_times: int = 4,
 ):
     # 1. Create dataset
-    try:
-        dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
-    except (AssertionError, RuntimeError, IndexError):
-        dataset = BasicDataset(dir_img, dir_mask, img_scale)
+    # try:
+        # dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
+    transforms = get_transforms()
+    augmented_datasets = [AugmentedCarvanaDataset(images_dir=dir_img, mask_dir=dir_mask, scale=1, transforms=transforms) for _ in range(augment_times)]
+    dataset = ConcatDataset(augmented_datasets)
+    # except (AssertionError, RuntimeError, IndexError):
+    #     dataset = BasicDataset(dir_img, dir_mask, img_scale)
 
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
@@ -74,9 +93,11 @@ def train_model(
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    
     optimizer = optim.RMSprop(model.parameters(),
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.25, patience=3)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
@@ -162,7 +183,14 @@ def train_model(
         if save_checkpoint:
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             state_dict = model.state_dict()
-            state_dict['mask_values'] = dataset.mask_values
+            if isinstance(dataset, ConcatDataset):
+                mask_values = []
+                for ds in dataset.datasets:
+                    if hasattr(ds, 'mask_values'):
+                        mask_values.extend(ds.mask_values)
+                state_dict['mask_values'] = list(set(mask_values))  # Remover duplicatas
+            else:
+                state_dict['mask_values'] = dataset.mask_values
             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
             logging.info(f'Checkpoint {epoch} saved!')
 
@@ -180,6 +208,7 @@ def get_args():
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
+    parser.add_argument('--augment-times', '-a', type=int, default=4, help='Number of times to augment the dataset')
 
     return parser.parse_args()
 
@@ -218,7 +247,9 @@ if __name__ == '__main__':
             device=device,
             img_scale=args.scale,
             val_percent=args.val / 100,
-            amp=args.amp
+            amp=args.amp,
+            augment_times=args.augment_times
+
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '
@@ -234,5 +265,6 @@ if __name__ == '__main__':
             device=device,
             img_scale=args.scale,
             val_percent=args.val / 100,
-            amp=args.amp
+            amp=args.amp,
+            augment_times=args.augment_times
         )

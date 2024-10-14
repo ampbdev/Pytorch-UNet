@@ -22,7 +22,10 @@ def evaluate(net, dataloader, device, amp):
 
             # predict the mask
             mask_pred = net(image)
-
+            
+            if isinstance(mask_pred, dict):
+                mask_pred = mask_pred['out']
+            
             if net.n_classes == 1:
                 assert mask_true.min() >= 0 and mask_true.max() <= 1, 'True mask indices should be in [0, 1]'
                 mask_pred = (F.sigmoid(mask_pred) > 0.5).float()

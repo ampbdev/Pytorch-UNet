@@ -4,9 +4,11 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
+from torchvision.models.segmentation import deeplabv3_resnet50
 
 from utils.data_loading import BasicDataset
 from unet import UNet
@@ -23,7 +25,12 @@ def predict_img(net,
     img = img.to(device=device, dtype=torch.float32)
 
     with torch.no_grad():
-        output = net(img).cpu()
+        output = net(img)
+        if isinstance(output, dict):
+            print(output.keys())
+            output = output['out']
+        
+        output = output.cpu()
         output = F.interpolate(output, (full_img.size[1], full_img.size[0]), mode='bilinear')
         if net.n_classes > 1:
             mask = output.argmax(dim=1)
@@ -35,6 +42,8 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
+    parser.add_argument('--arquitecture', '-a', default='unet',
+                        help='Arquitecture of the model')
     parser.add_argument('--model', '-m', default='MODEL.pth', metavar='FILE',
                         help='Specify the file in which the model is stored')
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images', required=True)
@@ -75,6 +84,11 @@ def mask_to_image(mask: np.ndarray, mask_values):
 
     return Image.fromarray(out)
 
+def get_deeplabv3_model(n_classes):
+    model = deeplabv3_resnet50(weights='DeepLabV3_ResNet50_Weights.DEFAULT')
+    model.classifier[4] = nn.Conv2d(256, n_classes, kernel_size=(1, 1), stride=(1, 1))
+    model.n_classes = n_classes
+    return model
 
 if __name__ == '__main__':
     args = get_args()
@@ -83,7 +97,10 @@ if __name__ == '__main__':
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    if args.arquitecture == 'unet':
+        net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    elif args.arquitecture == 'deeplabv3':
+        net = get_deeplabv3_model(args.classes)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')

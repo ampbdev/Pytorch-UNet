@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
+from torchvision.models.segmentation import deeplabv3_resnet50
 from pathlib import Path
 from torch import optim
 from torch.utils.data import DataLoader, random_split, ConcatDataset
@@ -16,27 +17,48 @@ from tqdm import tqdm
 import wandb
 from evaluate import evaluate
 from unet import UNet
-from utils.data_loading import BasicDataset, AugmentedCarvanaDataset, CarvanaDataset
+from utils.data_loading import BasicDataset, AugmentedCarvanaDataset
 from utils.dice_score import dice_loss
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 def get_transforms():
     return A.Compose([
-        A.Resize(height=256, width=256), 
+        A.Resize(height=64, width=64), 
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomRotate90(p=0.5),
         A.Transpose(p=0.5),
-        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=45, p=0.5),
-        A.RandomBrightnessContrast(p=0.5),
+        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.5),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
-    ], additional_targets={'mask': 'mask'}, is_check_shapes=False)
+    ], additional_targets={'mask': 'mask'})
 
 dir_img = Path('./data/imgs/')
 dir_mask = Path('./data/masks/')
 dir_checkpoint = Path('./checkpoints/')
+
+dir_img = Path('././data_poligono/imgs/')
+dir_mask = Path('././data_poligono/masks/')
+dir_checkpoint = Path('./checkpoints/data_poligono')
+
+
+dir_img = Path('././data_geral/imgs/')
+dir_mask = Path('././data_geral/masks/')
+dir_checkpoint = Path('./checkpoints/data_geral')
+
+
+dir_img = Path('././data_combined/imgs/')
+dir_mask = Path('././data_combined/masks/')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_combined')
+
+dir_img = Path('././data_estrada_sondagem/imgs/')
+dir_mask = Path('././data_estrada_sondagem/masks/')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_small')
+
+dir_img = Path('././data_estrada_sondagem/imgs/')
+dir_mask = Path('././data_estrada_sondagem/masks/')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3')
 
 
 def train_model(
@@ -57,9 +79,12 @@ def train_model(
     # 1. Create dataset
     # try:
         # dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
-    transforms = get_transforms()
-    augmented_datasets = [AugmentedCarvanaDataset(images_dir=dir_img, mask_dir=dir_mask, scale=1, transforms=transforms) for _ in range(augment_times)]
-    dataset = ConcatDataset(augmented_datasets)
+    if augment_times == 0:
+        dataset = BasicDataset(dir_img, dir_mask, img_scale)
+    else:
+        transforms = get_transforms()
+        augmented_datasets = [AugmentedCarvanaDataset(images_dir=dir_img, mask_dir=dir_mask, scale=1, transforms=transforms) for _ in range(augment_times)]
+        dataset = ConcatDataset(augmented_datasets)
     # except (AssertionError, RuntimeError, IndexError):
     #     dataset = BasicDataset(dir_img, dir_mask, img_scale)
 
@@ -110,16 +135,20 @@ def train_model(
             for batch in train_loader:
                 images, true_masks = batch['image'], batch['mask']
 
-                assert images.shape[1] == model.n_channels, \
-                    f'Network has been defined with {model.n_channels} input channels, ' \
-                    f'but loaded images have {images.shape[1]} channels. Please check that ' \
-                    'the images are loaded correctly.'
+                # assert images.shape[1] == model.n_channels, \
+                #     f'Network has been defined with {model.n_channels} input channels, ' \
+                #     f'but loaded images have {images.shape[1]} channels. Please check that ' \
+                #     'the images are loaded correctly.'
 
                 images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
                 true_masks = true_masks.to(device=device, dtype=torch.long)
 
                 with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
                     masks_pred = model(images)
+                    
+                    if "out" in masks_pred:
+                        masks_pred = masks_pred["out"]
+
                     if model.n_classes == 1:
                         loss = criterion(masks_pred.squeeze(1), true_masks.float())
                         loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
@@ -130,6 +159,16 @@ def train_model(
                             F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
                             multiclass=True
                         )
+
+                        # Evaluate each class
+                        class_eval = []
+                        for i in range(model.n_classes):
+                            mask_i = F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2)[:, i].float()
+                            pred_i = F.softmax(masks_pred, dim=1)[:, i].float()
+                            class_eval.append(dice_loss(pred_i, mask_i, multiclass=False))
+                            
+                            
+                            
 
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss).backward()
@@ -157,13 +196,20 @@ def train_model(
                             tag = tag.replace('/', '.')
                             if not (torch.isinf(value) | torch.isnan(value)).any():
                                 histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
-                            if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
+                            if value.grad is not None and not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
                                 histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
                         val_score = evaluate(model, val_loader, device, amp)
                         scheduler.step(val_score)
 
                         logging.info('Validation Dice score: {}'.format(val_score))
+                        for i, class_loss in enumerate(class_eval):
+                            logging.info(f'class {i} loss: {class_loss.item()}')
+                            experiment.log({
+                                f'class {i} loss': class_loss.item(),
+                                'step': global_step,
+                                'epoch': epoch
+                            })
                         try:
                             experiment.log({
                                 'learning rate': optimizer.param_groups[0]['lr'],
@@ -175,6 +221,7 @@ def train_model(
                                 },
                                 'step': global_step,
                                 'epoch': epoch,
+                                
                                 **histograms
                             })
                         except:
@@ -197,6 +244,8 @@ def train_model(
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
+    parser.add_argument('--model', '-m', type=str, default='unet', choices=['unet', 'deeplabv3'],
+                        help='Choose the model to use: "unet" or "deeplabv3"')
     parser.add_argument('--epochs', '-e', metavar='E', type=int, default=5, help='Number of epochs')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
@@ -212,6 +261,11 @@ def get_args():
 
     return parser.parse_args()
 
+def get_deeplabv3_model(n_classes):
+    model = deeplabv3_resnet50(weights='DeepLabV3_ResNet50_Weights.DEFAULT')
+    model.classifier[4] = nn.Conv2d(256, n_classes, kernel_size=(1, 1), stride=(1, 1))
+    model.n_classes = n_classes
+    return model
 
 if __name__ == '__main__':
     args = get_args()
@@ -223,13 +277,19 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    # Escolher o modelo com base no argumento
+    if args.model == 'unet':
+        model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    elif args.model == 'deeplabv3':
+        model = get_deeplabv3_model(n_classes=args.classes)
+
     model = model.to(memory_format=torch.channels_last)
 
-    logging.info(f'Network:\n'
-                 f'\t{model.n_channels} input channels\n'
-                 f'\t{model.n_classes} output channels (classes)\n'
-                 f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
+
+    # logging.info(f'Network:\n'
+                #  f'\t{model.n_channels} input channels\n'
+                #  f'\t{model.n_classes} output channels (classes)\n'
+                #  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     if args.load:
         state_dict = torch.load(args.load, map_location=device)
@@ -249,7 +309,6 @@ if __name__ == '__main__':
             val_percent=args.val / 100,
             amp=args.amp,
             augment_times=args.augment_times
-
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '

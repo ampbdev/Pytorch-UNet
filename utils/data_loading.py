@@ -134,6 +134,7 @@ class AugmentedCarvanaDataset(BasicDataset):
         
         if self.transforms:
             augmented = self.transforms(image=img.numpy().transpose(1, 2, 0), mask=mask.numpy())
+            # augmented = self.transforms(image=img.numpy(), mask=mask.numpy())
             img = augmented['image']
             mask = augmented['mask']
         

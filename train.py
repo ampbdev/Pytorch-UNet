@@ -34,31 +34,31 @@ def get_transforms():
         ToTensorV2()
     ], additional_targets={'mask': 'mask'})
 
-dir_img = Path('./data/imgs/')
-dir_mask = Path('./data/masks/')
-dir_checkpoint = Path('./checkpoints/')
+# dir_img = Path('./data/imgs/')
+# dir_mask = Path('./data/masks/')
+# dir_checkpoint = Path('./checkpoints/')
 
-dir_img = Path('././data_poligono/imgs/')
-dir_mask = Path('././data_poligono/masks/')
-dir_checkpoint = Path('./checkpoints/data_poligono')
-
-
-dir_img = Path('././data_geral/imgs/')
-dir_mask = Path('././data_geral/masks/')
-dir_checkpoint = Path('./checkpoints/data_geral')
+# dir_img = Path('././data_poligono/imgs/')
+# dir_mask = Path('././data_poligono/masks/')
+# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3_poligono')
 
 
-dir_img = Path('././data_combined/imgs/')
-dir_mask = Path('././data_combined/masks/')
-dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_combined')
+# dir_img = Path('././data_geral/imgs/')
+# dir_mask = Path('././data_geral/masks/')
+# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_geral_deeplabv3_poligono')
 
-dir_img = Path('././data_estrada_sondagem/imgs/')
-dir_mask = Path('././data_estrada_sondagem/masks/')
-dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_small')
+
+# dir_img = Path('././data_combined/imgs/')
+# dir_mask = Path('././data_combined/masks/')
+# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_combined')
 
 dir_img = Path('././data_estrada_sondagem/imgs/')
 dir_mask = Path('././data_estrada_sondagem/masks/')
-dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_deeplabv3_small')
+
+# dir_img = Path('././data_estrada_sondagem/imgs/')
+# dir_mask = Path('././data_estrada_sondagem/masks/')
+# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3')
 
 
 def train_model(
@@ -168,7 +168,7 @@ def train_model(
                             class_eval.append(dice_loss(pred_i, mask_i, multiclass=False))
                             
                             
-                            
+                
 
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss).backward()
@@ -177,13 +177,15 @@ def train_model(
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
 
+
                 pbar.update(images.shape[0])
                 global_step += 1
                 epoch_loss += loss.item()
                 experiment.log({
                     'train loss': loss.item(),
                     'step': global_step,
-                    'epoch': epoch
+                    'epoch': epoch,
+                    
                 })
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 

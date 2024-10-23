@@ -3,6 +3,26 @@
 from .unet_parts import *
 
 
+# class UNet(nn.Module):
+#     def __init__(self, n_channels, n_classes, bilinear=False):
+#         super(UNet, self).__init__()
+#         self.n_channels = n_channels
+#         self.n_classes = n_classes
+#         self.bilinear = bilinear
+
+#         self.inc = DoubleConv(n_channels, 32)  # Decreased number of channels
+#         self.down1 = Down(32, 64)  # Decreased number of channels
+#         self.down2 = Down(64, 128)  # Decreased number of channels
+#         self.down3 = Down(128, 256)  # Decreased number of channels
+#         factor = 2 if bilinear else 1
+#         self.down4 = Down(256, 512 // factor)  # Decreased number of channels
+#         self.up1 = Up(512, 256 // factor, bilinear)  # Decreased number of channels
+#         self.up2 = Up(256, 128 // factor, bilinear)  # Decreased number of channels
+#         self.up3 = Up(128, 64 // factor, bilinear)  # Decreased number of channels
+#         self.up4 = Up(64, 32, bilinear)  # Decreased number of channels
+#         self.outc = OutConv(32, n_classes)  # Decreased number of channels
+
+    # Rest of the code remains the same
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=False):
         super(UNet, self).__init__()

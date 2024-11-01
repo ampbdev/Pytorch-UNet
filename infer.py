@@ -28,7 +28,6 @@ def predict_img(net,
     with torch.no_grad():
         output = net(img)
         if isinstance(output, dict):
-            print(output.keys())
             output = output['out']
         
         output = output.cpu()
@@ -136,7 +135,6 @@ if __name__ == '__main__':
             
             # Save the profile of the image to the mask
             profile = src.profile.copy()
-            print(profile)
             profile.update({
                 'count': 1,
                 'dtype': 'uint8'

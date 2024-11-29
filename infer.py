@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
-from torchvision.models.segmentation import deeplabv3_resnet50
+from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet101
 
 from utils.data_loading import BasicDataset
 from unet import UNet
@@ -86,7 +86,7 @@ def mask_to_image(mask: np.ndarray, mask_values):
     return Image.fromarray(out)
 
 def get_deeplabv3_model(n_classes):
-    model = deeplabv3_resnet50(weights='DeepLabV3_ResNet50_Weights.DEFAULT')
+    model = deeplabv3_resnet101(weights='DeepLabV3_ResNet101_Weights.DEFAULT')
     model.classifier[4] = nn.Conv2d(256, n_classes, kernel_size=(1, 1), stride=(1, 1))
     model.n_classes = n_classes
     return model

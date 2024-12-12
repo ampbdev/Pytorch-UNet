@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
-from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet101
+from torchvision.models.segmentation import deeplabv3_resnet50
 from pathlib import Path
 from torch import optim
 from torch.utils.data import DataLoader, random_split, ConcatDataset
@@ -38,79 +38,13 @@ def get_transforms():
 # dir_mask = Path('./data/masks/')
 # dir_checkpoint = Path('./checkpoints/')
 
-# dir_img = Path('././data_poligono/imgs/')
-# dir_mask = Path('././data_poligono/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3_poligono')
+# dir_img = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/buritizal/imgs')
+# dir_mask = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/buritizal/masks')
+# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_binary_geral_combinado/buritizal')
 
-
-# dir_img = Path('././data_geral/imgs/')
-# dir_mask = Path('././data_geral/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_geral_deeplabv3_poligono')
-
-# dir_img = Path('././data_combined/imgs/')
-# dir_mask = Path('././data_combined/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_combined')
-
-# dir_img = Path('././data_estrada_sondagem/imgs/')
-# dir_mask = Path('././data_estrada_sondagem/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_deeplabv3_camila')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_01/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_01/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_1')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_02/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_02/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_2')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_03/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_03/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_3')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_04/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_04/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_4')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_05/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_05/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_5')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_06/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_06/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_6')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_07/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_07/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_7')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_08/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_08/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_8')
-
-# dir_img = Path('././data_estrada_sondagem_splits/split_09/imgs/')
-# dir_mask = Path('././data_estrada_sondagem_splits/split_09/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_estrada_sondagem_splits_split_9')
-
-# dir_img = Path('/media/igor/LTS/Flavio/data_areas_antropicas/imgs')
-# dir_mask = Path('/media/igor/LTS/Flavio/data_areas_antropicas/masks')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/areas_antropicas')
-
-# dir_img = Path('/media/igor/LTS/Flavio/data_lajedo/imgs')
-# dir_mask = Path('/media/igor/LTS/Flavio/data_lajedo/masks')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/lajedo')
-
-# dir_img = Path('/media/igor/LTS/Flavio/data_mata_baixa/imgs')
-# dir_mask = Path('/media/igor/LTS/Flavio/data_mata_baixa/masks')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/mata_baixa')
-
-dir_img = Path('/media/igor/LTS/Flavio/data_vegetacao_rupestre_aberta/imgs')
-dir_mask = Path('/media/igor/LTS/Flavio/data_vegetacao_rupestre_aberta/masks')
-dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/vegetacao_rupestre_aberta')
-
-# dir_img = Path('././data_estrada_sondagem/imgs/')
-# dir_mask = Path('././data_estrada_sondagem/masks/')
-# dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_deeplabv3')
-
+dir_img = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/estrada_acesso/imgs')
+dir_mask = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/estrada_acesso/masks')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_binary_geral_combinado/estrada_acesso')
 
 def train_model(
         model,
@@ -315,8 +249,7 @@ def get_args():
     return parser.parse_args()
 
 def get_deeplabv3_model(n_classes):
-    # model = deeplabv3_resnet50(weights='DeepLabV3_ResNet50_Weights.DEFAULT')
-    model = deeplabv3_resnet101(weights='DeepLabV3_ResNet101_Weights.DEFAULT')
+    model = deeplabv3_resnet50(weights='DeepLabV3_ResNet50_Weights.DEFAULT')
     model.classifier[4] = nn.Conv2d(256, n_classes, kernel_size=(1, 1), stride=(1, 1))
     model.n_classes = n_classes
     return model

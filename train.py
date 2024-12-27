@@ -24,13 +24,9 @@ from albumentations.pytorch import ToTensorV2
 
 def get_transforms():
     return A.Compose([
-        A.Resize(height=64, width=64), 
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.5),
+        A.Resize(height=256, width=256), 
         A.RandomRotate90(p=0.5),
         A.Transpose(p=0.5),
-        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.5),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ], additional_targets={'mask': 'mask'})
 
@@ -42,9 +38,9 @@ def get_transforms():
 # dir_mask = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/buritizal/masks')
 # dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_binary_geral_combinado/buritizal')
 
-dir_img = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/estrada_acesso/imgs')
-dir_mask = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/estrada_acesso/masks')
-dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_binary_geral_combinado/estrada_acesso')
+dir_img = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/vegetacao_rupestre_arbustiva/imgs')
+dir_mask = Path('/media/igor/LTS/Flavio/data_binary_geral_combinado/vegetacao_rupestre_arbustiva/masks')
+dir_checkpoint = Path('/media/igor/LTS/Flavio/checkpoints/data_binary_geral_combinado/vegetacao_rupestre_arbustiva')
 
 def train_model(
         model,
@@ -61,18 +57,13 @@ def train_model(
         gradient_clipping: float = 1.0,
         augment_times: int = 4,
 ):
-    # 1. Create dataset
-    # try:
-        # dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
     if augment_times == 0:
         dataset = BasicDataset(dir_img, dir_mask, img_scale)
     else:
         transforms = get_transforms()
         augmented_datasets = [AugmentedCarvanaDataset(images_dir=dir_img, mask_dir=dir_mask, scale=1, transforms=transforms) for _ in range(augment_times)]
         dataset = ConcatDataset(augmented_datasets)
-    # except (AssertionError, RuntimeError, IndexError):
-    #     dataset = BasicDataset(dir_img, dir_mask, img_scale)
-
+    
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
@@ -107,7 +98,7 @@ def train_model(
     
     optimizer = optim.RMSprop(model.parameters(),
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.25, patience=3)  # goal: maximize Dice score
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.1, patience=5)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
@@ -271,12 +262,6 @@ if __name__ == '__main__':
         model = get_deeplabv3_model(n_classes=args.classes)
 
     model = model.to(memory_format=torch.channels_last)
-
-
-    # logging.info(f'Network:\n'
-                #  f'\t{model.n_channels} input channels\n'
-                #  f'\t{model.n_classes} output channels (classes)\n'
-                #  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     if args.load:
         state_dict = torch.load(args.load, map_location=device)

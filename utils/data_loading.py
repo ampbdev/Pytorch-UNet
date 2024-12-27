@@ -87,6 +87,11 @@ class BasicDataset(Dataset):
 
             if (img > 1).any():
                 img = img / 255.0
+                
+            # Add normalization here
+            mean = np.array([0.485, 0.456, 0.406]).reshape(-1, 1, 1)
+            std = np.array([0.229, 0.224, 0.225]).reshape(-1, 1, 1)
+            img = (img - mean) / std
 
             return img
 
@@ -122,23 +127,38 @@ class AugmentedCarvanaDataset(BasicDataset):
         self.transforms = transforms
 
     def __getitem__(self, idx):
-        sample = super().__getitem__(idx)
-        img, mask = sample['image'], sample['mask']
-        
-        # Check if the height and width of the image and mask match
-        
-        if img.shape[1:] != mask.shape:
-            # Resize the mask to match the image dimensions using PyTorch's interpolate
-            mask = F.interpolate(mask.unsqueeze(0).unsqueeze(0), size=img.shape[1:], mode='nearest').squeeze(0).squeeze(0)
-        
-        
+        name = self.ids[idx]
+        mask_file = list(self.mask_dir.glob(name + self.mask_suffix + '.*'))[0]
+        img_file = list(self.images_dir.glob(name + '.*'))[0]
+
+        # Load the raw image and mask
+        mask = load_image(mask_file)
+        img = load_image(img_file)
+
+        # Convert to numpy arrays
+        img_np = np.array(img)
+        mask_np = np.array(mask)
+
+        # Apply transforms
         if self.transforms:
-            augmented = self.transforms(image=img.numpy().transpose(1, 2, 0), mask=mask.numpy())
-            # augmented = self.transforms(image=img.numpy(), mask=mask.numpy())
-            img = augmented['image']
-            mask = augmented['mask']
-        
+            augmented = self.transforms(image=img_np, mask=mask_np)
+            img = augmented['image']  # Now a torch tensor [C,H,W]
+            mask = augmented['mask']  # Also a tensor after ToTensorV2
+
+            # Normalize after converting to tensor
+            if isinstance(img, torch.Tensor) and (img.max() > 1.0):
+                img = img.float() / 255.0
+            
+            mean = torch.tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+            img = (img - mean) / std
+
+            # Only convert to tensor if it's still a numpy array
+            if not isinstance(mask, torch.Tensor):
+                mask = torch.from_numpy(mask)
+            mask = mask.long()
+
         return {
-            'image': img,
-            'mask': mask
+            'image': img.contiguous(),
+            'mask': mask.contiguous()
         }
